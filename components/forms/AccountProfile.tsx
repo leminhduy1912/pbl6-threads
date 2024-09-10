@@ -1,24 +1,30 @@
-"use client"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import { z } from "zod"
-import { Button } from "@/components/ui/button"
+"use client";
+
+import * as z from "zod";
+import Image from "next/image";
+import { useForm } from "react-hook-form";
+import { usePathname, useRouter } from "next/navigation";
+import { ChangeEvent, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+
 import {
     Form,
     FormControl,
-    FormDescription,
     FormField,
     FormItem,
     FormLabel,
     FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { UserValidation } from "@/lib/validations/user"
-import Image from "next/image"
-import { ChangeEvent, useState } from "react"
-import { Textarea } from "../ui/textarea"
-import { isBase64Image } from "@/lib/utils"
-import { useUploadThing } from "@/lib/uploadthing"
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+
+import { useUploadThing } from "@/lib/uploadthing";
+import { isBase64Image } from "@/lib/utils";
+
+import { UserValidation } from "@/lib/validations/user";
+import { updateUser } from "@/lib/actions/user.action";
+
 interface Props {
     user: {
         id: string;
@@ -30,38 +36,52 @@ interface Props {
     };
     btnTitle: string;
 }
+
 const AccountProfile = ({ user, btnTitle }: Props) => {
+    const router = useRouter();
+    const pathname = usePathname();
+    const { startUpload } = useUploadThing("media");
+
     const [files, setFiles] = useState<File[]>([]);
-    const startUpload = useUploadThing("media");
-    const form = useForm({
+
+    const form = useForm<z.infer<typeof UserValidation>>({
         resolver: zodResolver(UserValidation),
         defaultValues: {
-            profile_photo: '',
-            name: '',
-            username: '',
-            bio: ''
-        }
-    })
+            profile_photo: user?.image ? user.image : "",
+            name: user?.name ? user.name : "",
+            username: user?.username ? user.username : "",
+            bio: user?.bio ? user.bio : "",
+        },
+    });
 
     const onSubmit = async (values: z.infer<typeof UserValidation>) => {
-        try {
-            const blob = values.profile_photo;
-            const hasImageChanged = isBase64Image(blob);
+        const blob = values.profile_photo;
 
-            if (hasImageChanged && files.length > 0) {
-                const imgRes = await startUpload(files);
+        const hasImageChanged = isBase64Image(blob);
+        if (hasImageChanged) {
+            const imgRes = await startUpload(files);
 
-                if (imgRes && imgRes[0].fileUrl) {
-                    values.profile_photo = imgRes[0].fileUrl;
-                }
+            if (imgRes && imgRes[0].fileUrl) {
+                values.profile_photo = imgRes[0].fileUrl;
             }
+        }
 
-            // Handle the form submission logic here (e.g., API call)
-            console.log("Form submitted:", values);
-        } catch (error) {
-            console.error("Error submitting form:", error);
+        await updateUser({
+            name: values.name,
+            path: pathname,
+            username: values.username,
+            userId: user.id,
+            bio: values.bio,
+            image: values.profile_photo,
+        });
+
+        if (pathname === "/profile/edit") {
+            router.back();
+        } else {
+            router.push("/");
         }
     };
+
     const handleImage = (
         e: ChangeEvent<HTMLInputElement>,
         fieldChange: (value: string) => void
@@ -194,7 +214,7 @@ const AccountProfile = ({ user, btnTitle }: Props) => {
                 </Button>
             </form>
         </Form>
-    )
-}
+    );
+};
 
-export default AccountProfile
+export default AccountProfile;
